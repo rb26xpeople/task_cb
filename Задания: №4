@@ -1,0 +1,50 @@
+Написать SQL-запрос, который возвращает составы зелий, имеющих 5 или более эффектов
+
+--По условию не указано, но будем считать что все ингредиенты в зелье уникальны
+--все возможные варинанты : 
+with variants as (  
+                    --2 ингредиента
+                    select p1.ID_spice as p1_id, p2.ID_spice as p2_id, 0 as p3_id --не null тк может привести к строке и далее второй Union даст ошибку
+                    from Spices p1
+                             join Spices p2 on p1.ID_spice != p2.ID_spice 
+                    union all
+                    --3 ингредиента
+                    select p1.ID_spice, p2.ID_spice, p3.ID_spice
+                    from Spices p1
+                            join Spices p2 on p2.ID_spice != p1.ID_spice
+                            join Spices p3 on p3.ID_spice != p1.ID_spice and p3.ID_spice != p2.ID_spice
+                )
+
+select p1_id, p2_id , p3_id , count(distinct ID_effect) as count_effect 
+from variants  
+join mm_Spices_Effect on mm_Spices_Effect in (p1_id,p2_id,p3_id)
+group by p1_id, p2_id , p3_id
+having count(distinct ID_effect) >= 5;
+
+
+Каково максимально возможное количество эффектов в зелье? 
+
+12 при условии того что : 
+1) Используется 3 ингредиента
+2) Каждый ингредиент имеет 4 эффекта где каждый эфект не имеется в двух других ингредиентах
+
+
+Как на уровне БД можно реализовать ограничение «У одного ингредиента может быть от 1 до 4 потенциальных эффектов»?
+create or replace trigger tgr_mm_Spices_Effect
+before insert or update on mm_Spices_Effect
+for each row
+begin
+    select case 
+        when exists( select 
+                            ID_spice, count(ID_effect) 
+                     from mm_Spices_Effect 
+                     where ID_spice = :new.ID_spice 
+                     group by ID_spice having count(ID_effect) = 4
+                   )        
+    then 1 --если уже 4 эфекта
+    else 0
+    end into flag from dual;
+  if ( flag = 1) then
+    raise_application_error('-20000','Spice with id='||:new.ID_spice||' already has 4 effects');
+  end if;
+END;
