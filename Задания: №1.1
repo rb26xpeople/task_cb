@@ -1,0 +1,57 @@
+--Задания: №1.1
+1) select max(gen) from tmp.life
+
+2) 
+insert into tmp.life
+--Текущая жизнь - состояние с максимальным поколением
+with current_life as (select * from tmp.life where gen = ( select max(gen) from tmp.life )),
+--Сосдели для "Текущая жизнь"
+     neighbors as (
+                    select x+1 as x, y, gen from current_life
+                    union all
+                    select x+1, y-1, gen from current_life
+                    union all
+                    select x+1, y+1, gen from current_life
+                    union all
+                    select x-1, y, gen from current_life
+                    union all
+                    select x-1, y-1, gen from current_life
+                    union all
+                    select x-1, y+1, gen from current_life
+                    union all
+                    select x, y-1, gen from current_life
+                    union all
+                    select x, y+1, gen from current_life
+                   )
+	SELECT
+		current_life_1.x,
+	    current_life_1.y,
+	    ( select max(gen) from tmp.life ) +1 as gen
+	FROM
+		current_life current_life_1
+	JOIN neighbors on true
+	JOIN current_life current_life_2
+	                                    ON current_life_2.x = current_life_1.x+neighbors.x
+	                                   and current_life_2.y = current_life_1.y+neighbors.y
+	GROUP BY
+		current_life_1.x, current_life_1.y , ( select max(gen) from tmp.life )
+	HAVING COUNT(*)=3 OR COUNT(*)=2
+UNION
+	SELECT
+		current_life_1.x + neighbors.x as shift_x,
+		current_life_1.y + neighbors.y as shift_y,
+		( select max(gen) from tmp.life ) +1 as gn
+	FROM
+		current_life current_life_1
+	JOIN neighbors  on true
+	LEFT JOIN current_life current_life_2 ON current_life_2.x = current_life_1.x + neighbors.x
+	                                             and current_life_2.y = current_life_1.y+neighbors.y
+	                                             AND (current_life_2.x IS NULL OR current_life_2.y IS NULL)
+	GROUP BY
+		current_life_1.x + neighbors.x, current_life_1.y + neighbors.y , ( select max(gen) from tmp.life ) +1
+	HAVING COUNT(*) = 3;
+
+
+alter table tmp.life
+	add constraint life_pk
+		unique (x, y, gen);
